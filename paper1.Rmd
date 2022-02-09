@@ -1,0 +1,368 @@
+---
+title: "Time, Seasonal, and Locational Trends of Bicycle thefts in Toronto"
+author: "Dai Moroi"
+date: "February 8th 2022"
+output:
+  bookdown::pdf_document2:
+    toc: no
+abstract: "In this paper, I examined time and locational trend of bicycle thefts in Toronto. The result shows that most of the cases are concentrated on the specific 10 neighborhoods, there are less cases in winter and weekends. It may implie that Toronto Police Service should keep in mind the result when strengthening the security of the city."
+thanks: "Code and data are available at: [https://github.com/moroidai/paper1](https://github.com/moroidai/paper1)"
+bibliography: references.bib
+---
+
+```{r, include=FALSE}
+### Workspace setup ###
+
+# install packages if needed #
+if (!require("tidyverse")) install.packages("tidyverse") 
+if (!require("opendatatoronto")) install.packages("opendatatoronto")
+if (!require("janitor")) install.packages("janitor")
+if (!require("tidyr")) install.packages("tidyr")
+if (!require("bookdown")) install.packages("bookdown")
+if (!require("knitr")) install.packages("knitr")
+
+# lode packages #
+library(tidyverse)
+library(opendatatoronto) #for importing data
+library(janitor) # for cleaning dataset
+library(tidyr) #for making tables
+library(bookdown)    # for cross referencing figures
+library(knitr)
+```
+
+
+# Introduction
+
+ Bicycles are very useful tool for commuting, workout, and travelling. Since the outbreak of COVID-19, bicycles has been gathering attention, which led to so-called "COVID-19 bicycle boom" [@CBC]. That is because biking can be a alternative for workout in the gym; Or it can prevent people from using crowded public transportation, such as trains and buses. However, this boom has highlighted the serious problem as well, that is to say, bicycle thefts.
+ 
+ In a big city like Toronto, bicycle thefts can be a huge issue. In 2020, Toronto Police Service [@TPSa] reported nearly 4000 thefts in the city. To prevent these thefts, it is important to analyze from data when and where it is likely to occur and take proper measures according to analysis. Thus, in this paper, I will examine the time, seasonal, and locational trends of bicycle thefts using the actual data, and try to make some suggestions to Toronto Police Service.
+
+
+# Data
+
+  The analysis for this paper uses the R statistical programming language [@citeR], primarily using the `tidyverse` package for data manipulation [@citetidyverse]. In addition, The data is imported from the Open Data Toronto Portal using the `opendatatoronto` package [@citeopendatatoronto]. The packages `janitor` [@citejanitor] and `tidyr` [@citetidyr] are used to make figures and clean the data, and `bookdown` [@citebookdown] is used for making a R markdown report.
+
+The source of the data is the Toronto Police Service Annual Statistical Report (ASR). ASR is a comprehensive overview of police related statistics including reported crimes, victims of crime, search of persons, firearms, traffic collisions, personnel, budget, communications, public complaints, regulated interactions and other administrative information [@TPSb]. The dataset  contains bicycle thefts occurrences from 2014-2020 by reported date and details such as cost and types of bike, name of neighborhood, and premise types.
+
+Collection of this data is based on the record of phone call; Those who get bicycle thefts call  416-808-2222 (details are available [here](https://data.torontopolice.on.ca/pages/annualstatisticalreport)), and then Toronto Police Service processes the data, making it available as open source data.
+
+Bias that this dataset potentially hold can be divided into three aspects. First, the accuracy of location that the thefts occurred is not consistent. The location of crime occurrences have been deliberately offset to the nearest road intersection node to protect the privacy of parties involved in the occurrence [@opendatatoronto]. Also, it includes those where the location has not been able to be verified and occurrences where the coordinate location is outside the City of Toronto because it contains all bicycle theft occurrences reported to the Toronto Police Service [@opendatatoronto]. Thus, we have to be cautious when analyzing it in terms of locations or neighborhood. However, the data is still useful to grasp the big picture or trends. Second, we have to keep in mind that not all the crimes occurred in Toronto are reported to Toronto Police Service, so the actual number could be much higher than the data. People often don't report the crimes if it doesn't really matter to them, thus bicycle thefts that the data contains could be biased toward those of relatively expensive bikes. In addition, total cases can change a lot if Toronto Police Service changes the way of collecting report to easier one or they give some incentives for citizens to report crimes. However, I couldn't see such descriptions on the website, so we don't need to care about that. Third, the reason for some increase in the cases of bicycle thefts can be the increase in the total number of bicycle owned by citizens in Toronto. The more bikes there are, the more thefts can occur even if the crime rates are the same. I couldn't find the statistics about evolution of the number of uses of bicycles in Toronto, but we should keep in mind that the increase in cases can be due to the increase in total number of bicycles.
+
+In order to understand the trend and characteristics of the data, I will analyze the data from these aspects below:
+
+- Evolution of Cases
+- Seasonal Trend
+- Day of Week
+- Location
+- Neighborhood
+
+
+```{r, include=FALSE}
+#load data
+cleaned_data <-
+  read_csv("cleaned_data.csv",
+           show_col_types = TRUE)
+```
+
+
+
+## Cases
+
+Figure \@ref(fig:caseevolution) shows the changes in cases of bicycle thefts over time.
+
+Figure \@ref(fig:growth) shows the growth from previous year by percentage.
+
+Looking at those two graphs, we can notice the rapid increase in 2015 and 2016. It is also noticed that there was some increase in 2020 along with the COVID-19 restrictions. This may show the effect of the bicycle boom.
+
+```{r caseevolution, fig.cap = "Cases over time", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+
+#compete mean
+mean_cases <-
+  as.numeric(count(cleaned_data)) / 7
+
+# make a graph
+cleaned_data |>
+ggplot(aes(x = occurrence_year)) +
+  geom_bar(fill = "steelblue4", stat = "count") +
+         labs(x = "Year", y = "Number", title = "Evolution of the cases of bicycle thefts in Toronto") +
+         theme_classic() +
+         theme(plot.title = element_text(size=7), 
+               axis.text = element_text(size=7),
+               axis.title = element_text(size=7)) +
+  ylim(0, NA) +
+  geom_hline(yintercept = mean_cases, size = 0.5, color = "red", linetype = "dashed") +
+  geom_text(aes(2013.5, mean_cases, label = mean_cases, vjust = -1), color = "gray33", size = 2)+
+  geom_text(stat='count', aes(label=..count..), vjust=-1, size = 2)
+```
+
+
+```{r growth, fig.cap = "Growth over time", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+# compute change from previous year(%)
+d1 <-
+  cleaned_data |>
+  group_by(occurrence_year) |>
+  count()
+
+d1 <-
+  d1 |>
+  rename(Count = n)
+
+d1 <-
+  tibble(year = 2014:2020,
+         change = (d1$Count - lag(d1$Count)) / lag(d1$Count) *100
+  )
+
+d1 <-
+  mutate(d1,
+    valence = if_else(d1$change >= 0,
+                          "pos",
+                          "neg")
+  ) |>
+  slice(-1)
+
+#plot graph
+d1 |>
+  ggplot(aes(x = year, y = change, fill = valence)) +
+  geom_bar(stat = "identity") +
+  geom_line() +
+  geom_point() +
+         labs(x = "Year", y = "Change(%)", title = "Growth of Cases") +
+         theme_classic() +
+         theme(plot.title = element_text(size=7), 
+               axis.text = element_text(size=7),
+               axis.title = element_text(size=7)) +
+  scale_x_continuous(breaks = seq(2015,2020,1)) +
+  geom_hline(yintercept=0)
+```
+
+
+
+## Seasonal Trend
+
+Next, we will see if there is a seasonal trend for bike thefts in Toronto.
+
+Look at Figure \@ref(fig:seasonaltrend). We can see a very strong trend that there are higher number in summer and smaller number in winter. From December to March, lowest in February, there are very small number of thefts, and it gradually increases until July, then starting to decrease again. It is interesting that the months with very small number of thefts, from December to March, corresponds to the months that has snow. Because Toronto is very cold and it snows a lot during winter, the data shows that people may tend not to use bicycle in winter.
+
+
+```{r seasonaltrend, fig.cap = "Seasonal trend", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+cleaned_data <-
+  cleaned_data |>
+  mutate(occurrence_month = factor(occurrence_month),
+         occurrence_month = fct_relevel(
+           occurrence_month,
+           "January",
+           "February",
+           "March",
+           "April",
+           "May",
+           "June",
+           "July",
+           "August",
+           "September",
+           "October",
+           "November",
+           "December"
+         ))
+  
+cleaned_data |>
+  ggplot(aes(x =  occurrence_month, group = 1)) +
+  geom_line(color = "steelblue4", stat = "count") +
+  labs(x = "Month", y = "Number", title = "Seasonal Trend") +
+         theme_classic() +
+         theme(plot.title = element_text(size=7), 
+               axis.text = element_text(size=5),
+               axis.title = element_text(size=7))
+
+
+```
+
+## Day of week
+
+Figure \@ref(fig:dayofweek) shows the cases sorted by day of week.
+
+It is noticed that bicycle thefts mostly occurred on weekdays, where Saturday has 3471 case and Sunday has 3323 cases compared to the average cases 3645. This is probably because people use bikes to go to their offices or schools on weekdays.
+
+```{r dayofweek, fig.cap = "Day of Week", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+#make day of week class "factor"  to put in appropriate order
+cleaned_data <-
+  cleaned_data |>
+  mutate(occurrence_day_of_week = factor(occurrence_day_of_week),
+         occurrence_day_of_week = fct_relevel(
+           occurrence_day_of_week,
+           "Monday",
+           "Tuesday",
+           "Wednesday",
+           "Thursday",
+           "Friday",
+           "Saturday",
+           "Sunday"))
+
+#compute mean
+mean_dayofweek <-
+  as.numeric(count(cleaned_data)) / 7
+
+# plot data
+cleaned_data |>
+  ggplot(aes(x = occurrence_day_of_week, group = 1)) +
+  geom_bar(fill = "steelblue4", stat = "count") +
+  labs(x = "Day of week", y = "cases")  +
+  theme_classic() +
+  theme(plot.title = element_text(size=7), 
+        axis.text = element_text(size=5),
+        axis.title = element_text(size=7)) +
+  ylim(0,NA) +
+  geom_text(aes("Sunday", mean_dayofweek, label = "average", vjust = -1), color = "tomato", size = 2) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1, size = 2) +
+  geom_hline(yintercept = mean_dayofweek, size = 0.5, color = "red", linetype = "dashed")
+```
+
+## Trend of Hours
+
+Figure \@ref(fig:timetrend) shows the cases sorted by hours.
+
+The graph shows that bicycle thefts most occurred around 7pm with relatively high number from 8 a.m. to 0 a.m. It is noticed that arount midnight and early in the morning, 1 a.m. - 7 a.m..
+
+```{r timetrend, fig.cap = "Time Trend", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+
+mean_time <- #compute mean
+  as.numeric(count(cleaned_data))/24
+
+cleaned_data |>
+  ggplot(aes(x = occurrence_hour)) +
+  geom_line(color = "steelblue4", stat = "count")  +
+  labs(x = "Hour", y = "cases") +
+  theme_classic() +
+   theme(plot.title = element_text(size=7), 
+        axis.text = element_text(size=5),
+        axis.title = element_text(size=7)) +
+  scale_x_continuous(breaks = seq(0,23,2))  +
+  geom_hline(yintercept = mean_time, size = 0.5, color = "red", linetype = "dashed") +
+  geom_text(aes(-1, mean_time, label = "average", vjust = -1), color = "tomato",  size = 2) 
+```
+
+## Location
+ Looking at the location where bicycle thefts occurred in Figure \@ref(fig:location), we can see that place that it occurred most is outside, followed by apartment, house, commercial, and etc. It is surprising that many thefts are residential, where 39% of all bicycle theft occurred in apartments or houses.
+
+```{r location, fig.cap = "Location", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+
+cleaned_data |>
+  ggplot(aes(x = forcats::fct_infreq(premises_type), group = 1)) +
+  geom_bar(fill = "steelblue4", stat = "count") +
+  labs(x = "Location", y = "Number")  +
+  theme_classic() +
+  theme(plot.title = element_text(size=7), 
+        axis.text = element_text(size=5),
+        axis.title = element_text(size=7)) +
+  geom_text(stat='count', aes(label=..count..), vjust=-1, size = 2)
+
+```
+
+
+## Neighbourhood
+
+Figure \@ref(fig:neighbourhood) shows top 10 neighborhoods of 140 by number of bicycle thefts in Toronto and its number. Top 10 neighborhoods consist of "Waterfront Communities-The Island", "Bay Street Corridor", "Church-Yonge Corridor","Niagara", "Annex","Kensington-Chinatown", "Moss Park", "University", "South Riverdale", and  "Dovercourt-Wallace Emerson-Junction". It shows that top 3 neighborhood has very high cases, 2573, 2109, and 1671 respectively.
+
+Look at figure \@ref(fig:piechart). It shows the ratio of cases occupied by top 10 neighborhoods compared to other 130 neighborhood. It is surprising that only 10 neighborhoods account for 47% of total cases. This number is significant and it may imply that Toronto Police Service should strengthen the security of those neibourhoods.
+
+Because \@ref(fig:neighbourhood) and \@ref(fig:piechart) don't take population into account, I made a table that includes population of those neighborhood. The data is from City of Toronto Open Data Portal [@opendatatoronto2] and it shows population in 2016. Total population of City of Toronto is 2,731,571, so average cases per capita is 0.00934. Thus those top 10 neighborhoods are much higher than average in cases per capita.
+
+
+
+```{r neighbourhood, fig.cap = "Neighbourhood", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+freq <-
+  cleaned_data |>
+  group_by(neighbourhood_name) |>
+  count() 
+
+freq <-
+  freq |>
+  rename(Count = n)
+
+freq <-
+  data.frame(arrange(freq, desc(freq$Count)))
+
+
+freq |>
+  slice(1:10) |>
+  ggplot(aes(x = reorder(neighbourhood_name, -Count), y = Count)) +
+  geom_bar(fill = "steelblue4", stat = "identity") +
+  labs(x = "Neighbourhood", y = "Number")  +
+  theme_classic() +
+  theme(plot.title = element_text(size=7), 
+        axis.text = element_text(size=3),
+        axis.title = element_text(size=7)) +
+  geom_text(aes(label=Count), vjust=-1, size = 2)
+  
+```
+
+```{r piechart, fig.cap = "Top10 ratio", fig.width = 5, fig.height = 5, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+total <-
+  sum(freq[,"Count"])
+
+freq <-
+  freq |>
+  slice(1:10) 
+
+total_top10 <-
+  sum(freq[,"Count"])
+
+df <-
+  data.frame(
+    Count = c(total-total_top10, total_top10),
+    Group = c("others", "top10_neighbourhood")
+  )
+
+df |>
+ggplot(aes(x="", y=Count, fill=Group)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)
+#47% consists of top10_neighbourhood
+```
+
+```{r population, fig.cap = "Neighbourhood", fig.width = 5, fig.height = 3, echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center"}
+
+#load data
+cleaned_data <-
+  read_csv("population.csv",
+           show_col_types = TRUE)
+
+freq <-
+  freq |>
+  mutate(Population = c(
+    population$`Waterfront Communities-The Island`,
+    population$`Bay Street Corridor`,
+    population$`Church-Yonge Corridor`,
+    population$Niagara,
+    population$Annex,
+    population$`Kensington-Chinatown`,
+    population$`Moss Park`,
+    population$University,
+    population$`South Riverdale`,
+    population$`Dovercourt-Wallace Emerson-Junction`
+  ))
+
+freq <-
+  freq |>
+  mutate(Population = c(
+    65913,25797,31340, 31180,30526,17945,20506,7607,27876,36625
+  ))
+
+freq <-
+  freq |>
+  mutate(
+    ratio = Count / Population
+  )
+
+freq |>
+  kable(caption = "Top10 neighborhood population and cases per capita", 
+        col.names = c("Neighborhood", "Number", "Populattion", "Cases per capita"),
+        digits = 5,
+        booktabs = TRUE,
+        linesep = "")
+```
+
+
+\newpage
+
+
+# References
